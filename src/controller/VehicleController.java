@@ -12,10 +12,50 @@ public class VehicleController {
     private List<Vehicle> vehicles;
     private int nextVehicleId;
     
+    // Listeners for data changes
+    private List<VehicleDataListener> listeners;
+    
+    /**
+     * Interface for listening to vehicle data changes
+     */
+    public interface VehicleDataListener {
+        void onVehicleDataChanged();
+    }
+    
     public VehicleController() {
         this.vehicles = new ArrayList<>();
         this.nextVehicleId = 1;
+        this.listeners = new ArrayList<>();
         initializeDefaultVehicles();
+    }
+    
+    /**
+     * Add a listener for vehicle data changes
+     */
+    public void addVehicleDataListener(VehicleDataListener listener) {
+        if (listener != null && !listeners.contains(listener)) {
+            listeners.add(listener);
+        }
+    }
+    
+    /**
+     * Remove a listener for vehicle data changes
+     */
+    public void removeVehicleDataListener(VehicleDataListener listener) {
+        listeners.remove(listener);
+    }
+    
+    /**
+     * Notify all listeners that vehicle data has changed
+     */
+    private void notifyDataChanged() {
+        for (VehicleDataListener listener : listeners) {
+            try {
+                listener.onVehicleDataChanged();
+            } catch (Exception e) {
+                // Ignore listener errors
+            }
+        }
     }
     
     /**
@@ -45,7 +85,7 @@ public class VehicleController {
     vehicles.add(new Vehicle("V019", "Honda PCX", "Motorbike", 28.0, "Under Maintenance"));
     vehicles.add(new Vehicle("V020", "Chevrolet Colorado", "Truck", 72.0, "Available"));
     
-    nextVehicleId = 20;
+    nextVehicleId = 21;
 }
     
     /**
@@ -53,17 +93,53 @@ public class VehicleController {
      * @param name Vehicle name
      * @param type Vehicle type (Car, Motorbike, Truck)
      * @param pricePerDay Price per day rental rate
+     * @param status Vehicle status (Available, Rented, Under Maintenance)
      * @return true if vehicle added successfully
      */
-    public boolean addVehicle(String name, String type, double pricePerDay) {
+    public boolean addVehicle(String name, String type, double pricePerDay, String status) {
         String vehicleId = String.format("V%03d", nextVehicleId++);
-        Vehicle vehicle = new Vehicle(vehicleId, name, type, pricePerDay, "Available");
+        Vehicle vehicle = new Vehicle(vehicleId, name, type, pricePerDay, status);
         vehicles.add(vehicle);
+        notifyDataChanged();
         return true;
     }
     
     /**
+     * Add a new vehicle with default status "Available".
+     * @param name Vehicle name
+     * @param type Vehicle type (Car, Motorbike, Truck)
+     * @param pricePerDay Price per day rental rate
+     * @return true if vehicle added successfully
+     */
+    public boolean addVehicle(String name, String type, double pricePerDay) {
+        return addVehicle(name, type, pricePerDay, "Available");
+    }
+    
+    /**
      * Update an existing vehicle's information.
+     * @param vehicleId ID of the vehicle to update
+     * @param name New vehicle name
+     * @param type New vehicle type
+     * @param pricePerDay New price per day
+     * @param status New vehicle status (Available, Rented, Under Maintenance)
+     * @return true if update successful, false if vehicle not found
+     */
+    public boolean updateVehicle(String vehicleId, String name, String type, double pricePerDay, String status) {
+        for (Vehicle vehicle : vehicles) {
+            if (vehicle.getVehicleId().equals(vehicleId)) {
+                vehicle.setVehicleName(name);
+                vehicle.setVehicleType(type);
+                vehicle.setPricePerDay(pricePerDay);
+                vehicle.setStatus(status);
+                notifyDataChanged();
+                return true;
+            }
+        }
+        return false;
+    }
+    
+    /**
+     * Update an existing vehicle's information without changing status.
      * @param vehicleId ID of the vehicle to update
      * @param name New vehicle name
      * @param type New vehicle type
@@ -76,6 +152,7 @@ public class VehicleController {
                 vehicle.setVehicleName(name);
                 vehicle.setVehicleType(type);
                 vehicle.setPricePerDay(pricePerDay);
+                notifyDataChanged();
                 return true;
             }
         }
@@ -88,7 +165,11 @@ public class VehicleController {
      * @return true if deletion successful, false if vehicle not found
      */
     public boolean deleteVehicle(String vehicleId) {
-        return vehicles.removeIf(vehicle -> vehicle.getVehicleId().equals(vehicleId));
+        boolean removed = vehicles.removeIf(vehicle -> vehicle.getVehicleId().equals(vehicleId));
+        if (removed) {
+            notifyDataChanged();
+        }
+        return removed;
     }
     
     /**
@@ -114,13 +195,13 @@ public class VehicleController {
     }
     
     /**
-     * Get all available vehicles.
+     * Get all available vehicles (Available or Under Maintenance).
      * @return List of available vehicles
      */
     public List<Vehicle> getAvailableVehicles() {
         List<Vehicle> available = new ArrayList<>();
         for (Vehicle vehicle : vehicles) {
-            if ("Available".equals(vehicle.getStatus())) {
+            if ("Available".equals(vehicle.getStatus()) || "Under Maintenance".equals(vehicle.getStatus())) {
                 available.add(vehicle);
             }
         }
@@ -168,6 +249,7 @@ public class VehicleController {
         for (Vehicle vehicle : vehicles) {
             if (vehicle.getVehicleId().equals(vehicleId)) {
                 vehicle.setStatus(status);
+                notifyDataChanged();
                 return true;
             }
         }
@@ -175,13 +257,13 @@ public class VehicleController {
     }
     
     /**
-     * Get count of available vehicles.
+     * Get count of available vehicles (Available or Under Maintenance).
      * @return Number of available vehicles
      */
     public int getAvailableCount() {
         int count = 0;
         for (Vehicle vehicle : vehicles) {
-            if ("Available".equals(vehicle.getStatus())) {
+            if ("Available".equals(vehicle.getStatus()) || "Under Maintenance".equals(vehicle.getStatus())) {
                 count++;
             }
         }

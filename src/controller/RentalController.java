@@ -17,10 +17,50 @@ public class RentalController {
     private int nextRentalId;
     private VehicleController vehicleController;
     
+    // Listeners for data changes
+    private List<RentalDataListener> listeners;
+    
+    /**
+     * Interface for listening to rental data changes
+     */
+    public interface RentalDataListener {
+        void onRentalDataChanged();
+    }
+    
     public RentalController(VehicleController vehicleController) {
         this.rentals = new ArrayList<>();
         this.nextRentalId = 1001;
         this.vehicleController = vehicleController;
+        this.listeners = new ArrayList<>();
+    }
+    
+    /**
+     * Add a listener for rental data changes
+     */
+    public void addRentalDataListener(RentalDataListener listener) {
+        if (listener != null && !listeners.contains(listener)) {
+            listeners.add(listener);
+        }
+    }
+    
+    /**
+     * Remove a listener for rental data changes
+     */
+    public void removeRentalDataListener(RentalDataListener listener) {
+        listeners.remove(listener);
+    }
+    
+    /**
+     * Notify all listeners that rental data has changed
+     */
+    private void notifyDataChanged() {
+        for (RentalDataListener listener : listeners) {
+            try {
+                listener.onRentalDataChanged();
+            } catch (Exception e) {
+                // Ignore listener errors
+            }
+        }
     }
     
     /**
@@ -73,6 +113,7 @@ public class RentalController {
         
         // Save rental
         rentals.add(rental);
+        notifyDataChanged();
         return rental;
     }
     
@@ -86,6 +127,7 @@ public class RentalController {
             if (rental.getRentalId().equals(rentalId) && "Active".equals(rental.getStatus())) {
                 rental.markAsReturned();
                 vehicleController.updateVehicleStatus(rental.getVehicleId(), "Available");
+                notifyDataChanged();
                 return true;
             }
         }
@@ -103,6 +145,7 @@ public class RentalController {
             if (rental.getRentalId().equals(rentalId) && "Active".equals(rental.getStatus())) {
                 rental.markAsLost(giveBackDate);
                 vehicleController.updateVehicleStatus(rental.getVehicleId(), "Lost");
+                notifyDataChanged();
                 return true;
             }
         }
