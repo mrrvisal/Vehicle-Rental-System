@@ -31,6 +31,13 @@ public class AdminFrame extends JFrame {
     private DefaultTableModel vehicleTableModel;
     private DefaultTableModel rentalTableModel;
     
+    // Stat card labels for real-time updates
+    private JLabel availableCountLabel;
+    private JLabel totalVehiclesLabel;
+    private JLabel totalRentalsLabel;
+    private JLabel totalRevenueLabel;
+    private JPanel statsPanel;
+    
     private int mouseX, mouseY;
     
     // Color scheme
@@ -53,8 +60,57 @@ public class AdminFrame extends JFrame {
         this.rentalController = rentalController;
         this.loginController = loginController;
         
+        // Register as listeners for data changes
+        vehicleController.addVehicleDataListener(this::onVehicleDataChanged);
+        rentalController.addRentalDataListener(this::onRentalDataChanged);
+        
         setupUI();
         loadVehicleData();
+        loadRentalData();  // Load rental data on initialization
+    }
+    
+    /**
+     * Called when vehicle data changes - refresh the UI
+     */
+    private void onVehicleDataChanged() {
+        SwingUtilities.invokeLater(() -> {
+            loadVehicleData();
+            refreshStats();
+        });
+    }
+    
+    /**
+     * Called when rental data changes - refresh the UI
+     */
+    private void onRentalDataChanged() {
+        SwingUtilities.invokeLater(() -> {
+            loadRentalData();
+            refreshStats();
+        });
+    }
+    
+    /**
+     * Refresh the statistics panel with current counts
+     */
+    private void refreshStats() {
+        if (availableCountLabel != null) {
+            availableCountLabel.setText(String.valueOf(vehicleController.getAvailableCount()));
+        }
+        if (totalVehiclesLabel != null) {
+            totalVehiclesLabel.setText(String.valueOf(vehicleController.getAllVehicles().size()));
+        }
+        if (totalRentalsLabel != null) {
+            totalRentalsLabel.setText(String.valueOf(rentalController.getTotalRentalCount()));
+        }
+        if (totalRevenueLabel != null) {
+            totalRevenueLabel.setText("$" + String.format("%.2f", rentalController.getTotalRevenue()));
+        }
+        
+        // Force stats panel to repaint
+        if (statsPanel != null) {
+            statsPanel.revalidate();
+            statsPanel.repaint();
+        }
     }
     
     private void setupUI() {
@@ -368,6 +424,9 @@ public class AdminFrame extends JFrame {
                     } else if ("Rented".equals(value)) {
                         c.setForeground(DANGER_COLOR);
                         setFont(getFont().deriveFont(Font.BOLD));
+                    } else if ("Under Maintenance".equals(value)) {
+                        c.setForeground(WARNING_COLOR);
+                        setFont(getFont().deriveFont(Font.BOLD));
                     }
                 }
                 
@@ -495,6 +554,9 @@ public class AdminFrame extends JFrame {
         panel.setBackground(BACKGROUND);
         panel.setBorder(BorderFactory.createEmptyBorder(40, 40, 40, 40));
         
+        // Store reference for real-time updates
+        statsPanel = panel;
+        
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.insets = new Insets(20, 20, 20, 20);
         gbc.fill = GridBagConstraints.BOTH;
@@ -506,23 +568,54 @@ public class AdminFrame extends JFrame {
         int totalRentals = rentalController.getTotalRentalCount();
         double totalRevenue = rentalController.getTotalRevenue();
         
+        // Create stat cards with labels
+        JPanel availableCard = createStatCard("🚗 Available Vehicles", String.valueOf(availableCount), 
+            SUCCESS_COLOR, "Ready to rent");
+        availableCountLabel = getValueLabelFromCard(availableCard);
         gbc.gridx = 0; gbc.gridy = 0;
-        panel.add(createStatCard("🚗 Available Vehicles", String.valueOf(availableCount), 
-            SUCCESS_COLOR, "Ready to rent"), gbc);
+        panel.add(availableCard, gbc);
         
+        JPanel totalVehiclesCard = createStatCard("🚙 Total Vehicles", String.valueOf(totalVehicles), 
+            INFO_COLOR, "In fleet");
+        totalVehiclesLabel = getValueLabelFromCard(totalVehiclesCard);
         gbc.gridx = 1; gbc.gridy = 0;
-        panel.add(createStatCard("🚙 Total Vehicles", String.valueOf(totalVehicles), 
-            INFO_COLOR, "In fleet"), gbc);
+        panel.add(totalVehiclesCard, gbc);
         
+        JPanel totalRentalsCard = createStatCard("📋 Total Rentals", String.valueOf(totalRentals), 
+            WARNING_COLOR, "All time");
+        totalRentalsLabel = getValueLabelFromCard(totalRentalsCard);
         gbc.gridx = 0; gbc.gridy = 1;
-        panel.add(createStatCard("📋 Total Rentals", String.valueOf(totalRentals), 
-            WARNING_COLOR, "All time"), gbc);
+        panel.add(totalRentalsCard, gbc);
         
+        JPanel totalRevenueCard = createStatCard("💰 Total Revenue", "$" + String.format("%.2f", totalRevenue), 
+            SUCCESS_COLOR, "Earned");
+        totalRevenueLabel = getValueLabelFromCard(totalRevenueCard);
         gbc.gridx = 1; gbc.gridy = 1;
-        panel.add(createStatCard("💰 Total Revenue", "$" + String.format("%.2f", totalRevenue), 
-            PURPLE_COLOR, "Earned"), gbc);
+        panel.add(totalRevenueCard, gbc);
         
         return panel;
+    }
+    
+    /**
+     * Helper method to extract the value JLabel from a stat card
+     */
+    private JLabel getValueLabelFromCard(JPanel card) {
+        // Get all components and find the JLabel with the value (largest font)
+        for (Component comp : card.getComponents()) {
+            if (comp instanceof JPanel) {
+                JPanel innerPanel = (JPanel) comp;
+                for (Component innerComp : innerPanel.getComponents()) {
+                    if (innerComp instanceof JLabel) {
+                        JLabel label = (JLabel) innerComp;
+                        // The value label has font size 38
+                        if (label.getFont().getSize() == 38) {
+                            return label;
+                        }
+                    }
+                }
+            }
+        }
+        return null;
     }
     
     private JPanel createStatCard(String title, String value, Color color, String subtitle) {
@@ -567,6 +660,7 @@ public class AdminFrame extends JFrame {
         JLabel valueLabel = new JLabel(value);
         valueLabel.setFont(new Font("Segoe UI", Font.BOLD, 38));
         valueLabel.setForeground(TEXT_PRIMARY);
+        valueLabel.setHorizontalAlignment(SwingConstants.CENTER);
         centerPanel.add(valueLabel, BorderLayout.CENTER);
         
         card.add(centerPanel, BorderLayout.CENTER);
@@ -574,6 +668,7 @@ public class AdminFrame extends JFrame {
         JLabel subtitleLabel = new JLabel(subtitle);
         subtitleLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
         subtitleLabel.setForeground(TEXT_SECONDARY);
+        subtitleLabel.setHorizontalAlignment(SwingConstants.CENTER);
         card.add(subtitleLabel, BorderLayout.SOUTH);
         
         // Add hover effect
@@ -612,6 +707,8 @@ public class AdminFrame extends JFrame {
         String[] types = {"Car", "Motorbike", "Truck"};
         JComboBox<String> typeCombo = createModernComboBox(types);
         JTextField priceField = createModernTextField();
+        String[] statuses = {"Available", "Rented", "Under Maintenance"};
+        JComboBox<String> statusCombo = createModernComboBox(statuses);
         
         gbc.gridx = 0; gbc.gridy = 0; gbc.weightx = 0;
         formPanel.add(createFieldLabel("Vehicle Name:"), gbc);
@@ -622,11 +719,18 @@ public class AdminFrame extends JFrame {
         formPanel.add(createFieldLabel("Vehicle Type:"), gbc);
         gbc.gridx = 1; gbc.weightx = 1;
         formPanel.add(typeCombo, gbc);
-        
+        typeCombo.setPreferredSize(new Dimension(200, 50));
+
         gbc.gridx = 0; gbc.gridy = 2; gbc.weightx = 0;
         formPanel.add(createFieldLabel("Price Per Day ($):"), gbc);
         gbc.gridx = 1; gbc.weightx = 1;
         formPanel.add(priceField, gbc);
+        
+        gbc.gridx = 0; gbc.gridy = 3; gbc.weightx = 0;
+        formPanel.add(createFieldLabel("Status:"), gbc);
+        gbc.gridx = 1; gbc.weightx = 1;
+        formPanel.add(statusCombo, gbc);
+        statusCombo.setPreferredSize(new Dimension(200, 50));
         
         dialogPanel.add(formPanel, BorderLayout.CENTER);
         
@@ -637,6 +741,7 @@ public class AdminFrame extends JFrame {
             String name = nameField.getText().trim();
             String type = (String) typeCombo.getSelectedItem();
             String priceStr = priceField.getText().trim();
+            String status = (String) statusCombo.getSelectedItem();
             
             if (name.isEmpty()) {
                 showErrorDialog("Please enter vehicle name");
@@ -664,7 +769,7 @@ public class AdminFrame extends JFrame {
                 return;
             }
             
-            vehicleController.addVehicle(name, type, price);
+            vehicleController.addVehicle(name, type, price, status);
             loadVehicleData();
             showSuccessDialog("Vehicle added successfully!");
         }
@@ -707,6 +812,9 @@ public class AdminFrame extends JFrame {
         typeCombo.setSelectedItem(vehicle.getVehicleType());
         JTextField priceField = createModernTextField();
         priceField.setText(String.valueOf(vehicle.getPricePerDay()));
+        String[] statuses = {"Available", "Rented", "Under Maintenance"};
+        JComboBox<String> statusCombo = createModernComboBox(statuses);
+        statusCombo.setSelectedItem(vehicle.getStatus());
         
         gbc.gridx = 0; gbc.gridy = 0; gbc.weightx = 0;
         formPanel.add(createFieldLabel("Vehicle Name:"), gbc);
@@ -717,11 +825,18 @@ public class AdminFrame extends JFrame {
         formPanel.add(createFieldLabel("Vehicle Type:"), gbc);
         gbc.gridx = 1; gbc.weightx = 1;
         formPanel.add(typeCombo, gbc);
+        typeCombo.setPreferredSize(new Dimension(200, 50));
         
         gbc.gridx = 0; gbc.gridy = 2; gbc.weightx = 0;
         formPanel.add(createFieldLabel("Price Per Day ($):"), gbc);
         gbc.gridx = 1; gbc.weightx = 1;
         formPanel.add(priceField, gbc);
+        
+        gbc.gridx = 0; gbc.gridy = 3; gbc.weightx = 0;
+        formPanel.add(createFieldLabel("Status:"), gbc);
+        gbc.gridx = 1; gbc.weightx = 1;
+        formPanel.add(statusCombo, gbc);
+        statusCombo.setPreferredSize(new Dimension(200, 50));
         
         dialogPanel.add(formPanel, BorderLayout.CENTER);
         
@@ -732,6 +847,7 @@ public class AdminFrame extends JFrame {
             String name = nameField.getText().trim();
             String type = (String) typeCombo.getSelectedItem();
             String priceStr = priceField.getText().trim();
+            String status = (String) statusCombo.getSelectedItem();
             
             if (name.isEmpty()) {
                 showErrorDialog("Please enter vehicle name");
@@ -755,7 +871,7 @@ public class AdminFrame extends JFrame {
                 return;
             }
             
-            vehicleController.updateVehicle(vehicleId, name, type, price);
+            vehicleController.updateVehicle(vehicleId, name, type, price, status);
             loadVehicleData();
             showSuccessDialog("Vehicle updated successfully!");
         }
@@ -772,28 +888,59 @@ public class AdminFrame extends JFrame {
         String vehicleName = (String) vehicleTableModel.getValueAt(selectedRow, 1);
         String status = (String) vehicleTableModel.getValueAt(selectedRow, 4);
         
-        if ("Rented".equals(status)) {
-            showWarningDialog("Cannot delete - vehicle is currently rented!");
-            return;
-        }
-        
         int confirm = JOptionPane.showConfirmDialog(this,
-            "Are you sure you want to delete:\n" + vehicleName + " (" + vehicleId + ")?",
+            "<html>Delete <b>" + vehicleName + "</b> (ID: " + vehicleId + ")?<br><br>" +
+            "<span style='color: #e74c3c;'>This action cannot be undone.</span></html>",
             "Confirm Deletion", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
         
         if (confirm == JOptionPane.YES_OPTION) {
-            boolean deleted = vehicleController.deleteVehicle(vehicleId);
-            if (deleted) {
-                loadVehicleData();
+            if (vehicleController.deleteVehicle(vehicleId)) {
                 showSuccessDialog("Vehicle deleted successfully!");
+                loadVehicleData();
             } else {
                 showErrorDialog("Failed to delete vehicle");
             }
         }
     }
     
+    private void loadVehicleData() {
+        vehicleTableModel.setRowCount(0);
+        List<Vehicle> vehicles = vehicleController.getAllVehicles();
+        
+        for (Vehicle vehicle : vehicles) {
+            Object[] row = {
+                vehicle.getVehicleId(),
+                vehicle.getVehicleName(),
+                vehicle.getVehicleType(),
+                String.format("%.2f", vehicle.getPricePerDay()),
+                vehicle.getStatus()
+            };
+            vehicleTableModel.addRow(row);
+        }
+    }
+    
+    private void loadRentalData() {
+        rentalTableModel.setRowCount(0);
+        List<Rental> rentals = rentalController.getAllRentals();
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
+        
+        for (Rental rental : rentals) {
+            Object[] row = {
+                rental.getRentalId(),
+                rental.getCustomerUsername(),
+                rental.getVehicleName(),
+                rental.getFormattedDuration(),
+                String.format("%.2f", rental.getTotalCost()),
+                rental.getRentalDate() != null ? rental.getRentalDate().format(formatter) : "-",
+                rental.getExpectedReturnDate() != null ? rental.getExpectedReturnDate().format(formatter) : "-",
+                rental.getStatus()
+            };
+            rentalTableModel.addRow(row);
+        }
+    }
+    
     private JTextField createModernTextField() {
-        JTextField field = new JTextField(20);
+        JTextField field = new JTextField();
         field.setFont(new Font("Segoe UI", Font.PLAIN, 14));
         field.setBorder(BorderFactory.createCompoundBorder(
             BorderFactory.createLineBorder(BORDER_COLOR, 1),
@@ -821,16 +968,37 @@ public class AdminFrame extends JFrame {
         return field;
     }
     
+    @SuppressWarnings("unchecked")
     private JComboBox<String> createModernComboBox(String[] items) {
-        JComboBox<String> combo = new JComboBox<>(items);
-        combo.setFont(new Font("Segoe UI", Font.PLAIN, 14));
-        combo.setBackground(CARD_BG);
-        combo.setForeground(TEXT_PRIMARY);
-        combo.setBorder(BorderFactory.createCompoundBorder(
+        JComboBox<String> comboBox = new JComboBox<>(items);
+        comboBox.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        comboBox.setBackground(CARD_BG);
+        comboBox.setForeground(TEXT_PRIMARY);
+        comboBox.setBorder(BorderFactory.createCompoundBorder(
             BorderFactory.createLineBorder(BORDER_COLOR, 1),
-            BorderFactory.createEmptyBorder(8, 12, 8, 12)
+            BorderFactory.createEmptyBorder(10, 15, 10, 15)
         ));
-        return combo;
+        
+        comboBox.setRenderer(new DefaultListCellRenderer() {
+            @Override
+            public Component getListCellRendererComponent(JList<?> list, Object value, int index,
+                    boolean isSelected, boolean cellHasFocus) {
+                super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+                
+                if (isSelected) {
+                    setBackground(new Color(INFO_COLOR.getRed(), INFO_COLOR.getGreen(), INFO_COLOR.getBlue(), 40));
+                    setForeground(TEXT_PRIMARY);
+                } else {
+                    setBackground(isSelected ? new Color(INFO_COLOR.getRed(), INFO_COLOR.getGreen(), INFO_COLOR.getBlue(), 20) : CARD_BG);
+                    setForeground(TEXT_PRIMARY);
+                }
+                
+                setBorder(BorderFactory.createEmptyBorder(8, 15, 8, 15));
+                return this;
+            }
+        });
+        
+        return comboBox;
     }
     
     private JLabel createFieldLabel(String text) {
@@ -853,44 +1021,6 @@ public class AdminFrame extends JFrame {
     private void showWarningDialog(String message) {
         JOptionPane.showMessageDialog(this, "⚠️ " + message,
             "Warning", JOptionPane.WARNING_MESSAGE);
-    }
-    
-    private void loadVehicleData() {
-        vehicleTableModel.setRowCount(0);
-        List<Vehicle> vehicles = vehicleController.getAllVehicles();
-        
-        for (Vehicle vehicle : vehicles) {
-            Object[] row = {
-                vehicle.getVehicleId(),
-                vehicle.getVehicleName(),
-                vehicle.getVehicleType(),
-                String.format("%.2f", vehicle.getPricePerDay()),
-                vehicle.getStatus()
-            };
-            vehicleTableModel.addRow(row);
-        }
-        
-        loadRentalData();
-    }
-    
-    private void loadRentalData() {
-        rentalTableModel.setRowCount(0);
-        List<Rental> rentals = rentalController.getAllRentals();
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
-        
-        for (Rental rental : rentals) {
-            Object[] row = {
-                rental.getRentalId(),
-                rental.getCustomerUsername(),
-                rental.getVehicleName(),
-                rental.getFormattedDuration(),
-                String.format("%.2f", rental.getTotalCost()),
-                rental.getRentalDate().format(formatter),
-                rental.getExpectedReturnDate() != null ? rental.getExpectedReturnDate().format(formatter) : "-",
-                rental.getStatus()
-            };
-            rentalTableModel.addRow(row);
-        }
     }
     
     private Color darkenColor(Color color, float fraction) {

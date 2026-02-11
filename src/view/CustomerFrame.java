@@ -38,6 +38,13 @@ public class CustomerFrame extends JFrame {
     private DefaultTableModel rentalTableModel;
     private DefaultTableModel historyTableModel;
     
+    // Stat card labels for real-time updates
+    private JLabel carCountLabel;
+    private JLabel motorbikeCountLabel;
+    private JLabel truckCountLabel;
+    private JLabel totalAvailableLabel;
+    private JPanel statsPanel;
+    
     private int mouseX, mouseY;
     
     // Color scheme - matching AdminFrame
@@ -61,8 +68,66 @@ public class CustomerFrame extends JFrame {
         this.loginController = loginController;
         this.currentUser = currentUser;
         
+        // Register as listeners for data changes
+        vehicleController.addVehicleDataListener(this::onVehicleDataChanged);
+        rentalController.addRentalDataListener(this::onRentalDataChanged);
+        
         setupUI();
         loadData();
+    }
+    
+    /**
+     * Called when vehicle data changes - refresh the UI
+     */
+    private void onVehicleDataChanged() {
+        SwingUtilities.invokeLater(() -> {
+            loadAvailableVehicles();
+            loadMyRentals();
+            refreshStats();
+        });
+    }
+    
+    /**
+     * Refresh the stats panel with current counts
+     */
+    private void refreshStats() {
+        List<Vehicle> availableVehicles = vehicleController.getAvailableVehicles();
+        int totalAvailable = availableVehicles.size();
+        
+        long carCount = availableVehicles.stream().filter(v -> "Car".equals(v.getVehicleType())).count();
+        long motorbikeCount = availableVehicles.stream().filter(v -> "Motorbike".equals(v.getVehicleType())).count();
+        long truckCount = availableVehicles.stream().filter(v -> "Truck".equals(v.getVehicleType())).count();
+        
+        // Update labels
+        if (carCountLabel != null) {
+            carCountLabel.setText(String.valueOf(carCount));
+        }
+        if (motorbikeCountLabel != null) {
+            motorbikeCountLabel.setText(String.valueOf(motorbikeCount));
+        }
+        if (truckCountLabel != null) {
+            truckCountLabel.setText(String.valueOf(truckCount));
+        }
+        if (totalAvailableLabel != null) {
+            totalAvailableLabel.setText(String.valueOf(totalAvailable));
+        }
+        
+        // Force stats panel to repaint
+        if (statsPanel != null) {
+            statsPanel.revalidate();
+            statsPanel.repaint();
+        }
+    }
+    
+    /**
+     * Called when rental data changes - refresh the UI
+     */
+    private void onRentalDataChanged() {
+        SwingUtilities.invokeLater(() -> {
+            loadMyRentals();
+            loadRentalHistory();
+            refreshStats();
+        });
     }
     
     private void setupUI() {
@@ -376,6 +441,11 @@ public class CustomerFrame extends JFrame {
         };
         
         availableTable = new JTable(availableTableModel);
+        
+        // Hide the ID column (column 0)
+        availableTable.getColumnModel().getColumn(0).setMinWidth(0);
+        availableTable.getColumnModel().getColumn(0).setMaxWidth(0);
+        availableTable.getColumnModel().getColumn(0).setWidth(0);
         styleTable(availableTable);
         
         // Double-click to rent
@@ -416,7 +486,7 @@ public class CustomerFrame extends JFrame {
     }
     
     private JPanel createVehicleStatsPanel() {
-        JPanel statsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 15, 10));
+        statsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 15, 10));
         statsPanel.setBackground(BACKGROUND);
         
         List<Vehicle> availableVehicles = vehicleController.getAvailableVehicles();
@@ -426,15 +496,15 @@ public class CustomerFrame extends JFrame {
         long motorbikeCount = availableVehicles.stream().filter(v -> "Motorbike".equals(v.getVehicleType())).count();
         long truckCount = availableVehicles.stream().filter(v -> "Truck".equals(v.getVehicleType())).count();
         
-        statsPanel.add(createMiniStatCard("🚗 Cars", String.valueOf(carCount), INFO_COLOR));
-        statsPanel.add(createMiniStatCard("🏍️ Motorbikes", String.valueOf(motorbikeCount), SUCCESS_COLOR));
-        statsPanel.add(createMiniStatCard("🚚 Trucks", String.valueOf(truckCount), WARNING_COLOR));
-        statsPanel.add(createMiniStatCard("📊 Total Available", String.valueOf(totalAvailable), PURPLE_COLOR));
+        statsPanel.add(createMiniStatCard("🚗 Cars", String.valueOf(carCount), INFO_COLOR, true));
+        statsPanel.add(createMiniStatCard("🏍️ Motorbikes", String.valueOf(motorbikeCount), SUCCESS_COLOR, true));
+        statsPanel.add(createMiniStatCard("🚚 Trucks", String.valueOf(truckCount), WARNING_COLOR, true));
+        statsPanel.add(createMiniStatCard("📊 Total Available", String.valueOf(totalAvailable), PURPLE_COLOR, true));
         
         return statsPanel;
     }
     
-    private JPanel createMiniStatCard(String title, String value, Color color) {
+    private JPanel createMiniStatCard(String title, String value, Color color, boolean storeLabel) {
         JPanel card = new JPanel(new BorderLayout(5, 5)) {
             @Override
             protected void paintComponent(Graphics g) {
@@ -464,6 +534,19 @@ public class CustomerFrame extends JFrame {
         valueLabel.setHorizontalAlignment(SwingConstants.CENTER);
         card.add(valueLabel, BorderLayout.CENTER);
         
+        // Store reference to label if requested
+        if (storeLabel) {
+            if (title.contains("Cars")) {
+                carCountLabel = valueLabel;
+            } else if (title.contains("Motorbikes")) {
+                motorbikeCountLabel = valueLabel;
+            } else if (title.contains("Trucks")) {
+                truckCountLabel = valueLabel;
+            } else if (title.contains("Total")) {
+                totalAvailableLabel = valueLabel;
+            }
+        }
+        
         return card;
     }
     
@@ -486,6 +569,11 @@ public class CustomerFrame extends JFrame {
         };
         
         rentalTable = new JTable(rentalTableModel);
+        
+        // Hide the Rental ID column (column 0)
+        rentalTable.getColumnModel().getColumn(0).setMinWidth(0);
+        rentalTable.getColumnModel().getColumn(0).setMaxWidth(0);
+        rentalTable.getColumnModel().getColumn(0).setWidth(0);
         styleTable(rentalTable);
         
         // Custom renderer for status
@@ -593,6 +681,11 @@ public class CustomerFrame extends JFrame {
         };
         
         historyTable = new JTable(historyTableModel);
+        
+        // Hide the Rental ID column (column 0)
+        historyTable.getColumnModel().getColumn(0).setMinWidth(0);
+        historyTable.getColumnModel().getColumn(0).setMaxWidth(0);
+        historyTable.getColumnModel().getColumn(0).setWidth(0);
         styleTable(historyTable);
         
         // Custom renderer for status
@@ -696,7 +789,7 @@ public class CustomerFrame extends JFrame {
             vehicles = vehicleController.getAvailableVehicles();
         } else {
             vehicles = vehicleController.searchVehiclesByName(searchText);
-            vehicles.removeIf(v -> !"Available".equals(v.getStatus()));
+            vehicles.removeIf(v -> !"Available".equals(v.getStatus()) && !"Under Maintenance".equals(v.getStatus()));
         }
         
         if (vehicles.isEmpty()) {

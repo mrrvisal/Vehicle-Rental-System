@@ -21,10 +21,10 @@ public class LoginController {
      */
     private void initializeDefaultUsers() {
         // Default Admin user
-        users.add(new User("admin", "admin123", "Admin"));
+        users.add(new User("admin", "admin", "Admin"));
         
         // Default Customer users
-        users.add(new User("sal", "sal123", "Customer"));
+        users.add(new User("user", "user", "Customer"));
     }
     
     /**

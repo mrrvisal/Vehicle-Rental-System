@@ -15,6 +15,11 @@ import java.awt.geom.RoundRectangle2D;
  * Enhanced with improved UI, animations, and professional styling.
  */
 public class LoginFrame extends JFrame {
+    // Static shared controllers to persist data across sessions
+    private static LoginController sharedLoginController;
+    private static VehicleController sharedVehicleController;
+    private static RentalController sharedRentalController;
+    
     private LoginController loginController;
     private VehicleController vehicleController;
     private RentalController rentalController;
@@ -39,9 +44,21 @@ public class LoginFrame extends JFrame {
     private static final Color WARNING_COLOR = new Color(241, 196, 15);
     
     public LoginFrame() {
-        this.vehicleController = new VehicleController();
-        this.rentalController = new RentalController(vehicleController);
-        this.loginController = new LoginController();
+        // Initialize shared controllers if they don't exist (first login)
+        if (sharedLoginController == null) {
+            sharedLoginController = new LoginController();
+        }
+        if (sharedVehicleController == null) {
+            sharedVehicleController = new VehicleController();
+        }
+        if (sharedRentalController == null) {
+            sharedRentalController = new RentalController(sharedVehicleController);
+        }
+        
+        // Use shared controllers
+        this.loginController = sharedLoginController;
+        this.vehicleController = sharedVehicleController;
+        this.rentalController = sharedRentalController;
         
         setupUI();
         setupEventHandlers();
